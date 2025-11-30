@@ -1,0 +1,60 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  loans     Loan[]
+}
+
+model Loan {
+  id              Int        @id @default(autoincrement())
+  amount          Float
+  remainingAmount Float      @default(0) // default нэмсэн
+  description     String?
+  loanDate        DateTime   @default(now())
+  dueDate         DateTime?
+  status          LoanStatus @default(ACTIVE)
+  type            LoanType
+  otherParty      String
+  userId          Int
+  user            User       @relation(fields: [userId], references: [id])
+  payments        Payment[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+model Payment {
+  id          Int      @id @default(autoincrement())
+  amount      Float
+  description String?
+  paymentDate DateTime @default(now())
+  loanId      Int
+  loan        Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@index([loanId])
+}
+
+enum LoanType {
+  BORROWED
+  LENT
+}
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  OVERDUE
+}
