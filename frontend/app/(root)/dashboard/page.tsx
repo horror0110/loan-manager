@@ -18,6 +18,17 @@ import GanaaDataTable from "@/components/datatable/GanaaDataTable";
 import { Column, Action, HeaderStatistic, Filter } from "@/types/table.types";
 import axiosInstance from "@/lib/axios";
 import { hasValidTokens } from "@/lib/token";
+import toast from "react-hot-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Payment {
   id: number;
@@ -51,6 +62,14 @@ interface LoanStats {
   netBalance: number;
 }
 
+interface DialogState {
+  isOpen: boolean;
+  type: "delete" | "markPaid" | null;
+  loan: Loan | null;
+  title: string;
+  description: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [loans, setLoans] = useState<Loan[]>([]);
@@ -62,6 +81,13 @@ export default function DashboardPage() {
   const [selectedRows, setSelectedRows] = useState<(string | number)[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [dialog, setDialog] = useState<DialogState>({
+    isOpen: false,
+    type: null,
+    loan: null,
+    title: "",
+    description: "",
+  });
 
   useEffect(() => {
     if (!hasValidTokens()) {
@@ -81,47 +107,74 @@ export default function DashboardPage() {
       setLoans(loansResponse.data);
       setStats(statsResponse.data);
     } catch (err: any) {
-      if (err.response?.status === 401) router.replace("/");
+      if (err.response?.status === 401) {
+        router.replace("/");
+        toast.error("Нэвтрэх эрх дууссан байна");
+      } else {
+        toast.error("Өгөгдөл авахад алдаа гарлаа");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleCreateLoan = () => router.push("/loans/create");
+
   const handleEditLoan = (loan: Loan) => router.push(`/loans/${loan.id}/edit`);
+
   const handleViewPayments = (loan: Loan) =>
     router.push(`/loans/${loan.id}/payments`);
 
-  const handleDeleteLoan = async (loan: Loan) => {
-    const confirmed = window.confirm(
-      `"${loan.otherParty}" - ${loan.amount}₮ зээлийг устгах уу?`
-    );
-    if (!confirmed) return;
-
-    try {
-      await axiosInstance.delete(`/api/loans/${loan.id}`);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Зээл устгахад алдаа гарлаа");
-    }
+  const handleDeleteLoan = (loan: Loan) => {
+    setDialog({
+      isOpen: true,
+      type: "delete",
+      loan,
+      title: "Зээл устгах",
+      description: `"${
+        loan.otherParty
+      }" - ${loan.amount.toLocaleString()}₮ зээлийг устгахдаа итгэлтэй байна уу? Энэ үйлдлийг буцаах боломжгүй.`,
+    });
   };
 
-  const handleMarkAsPaid = async (loan: Loan) => {
-    const confirmed = window.confirm(
-      `"${loan.otherParty}" - ${loan.remainingAmount}₮ үлдэгдлийг бүтэн төлөх үү?`
-    );
-    if (!confirmed) return;
-
-    try {
-      await axiosInstance.patch(`/api/loans/${loan.id}/paid`);
-      await fetchData();
-    } catch (err: any) {
-      alert(err.response?.data?.error || "Алдаа гарлаа");
-    }
+  const handleMarkAsPaid = (loan: Loan) => {
+    setDialog({
+      isOpen: true,
+      type: "markPaid",
+      loan,
+      title: "Зээл төлөгдсөн болгох",
+      description: `"${
+        loan.otherParty
+      }" - ${loan.remainingAmount.toLocaleString()}₮ үлдэгдлийг бүтэн төлөгдсөн болгох уу?`,
+    });
   };
 
   const handleAddPayment = (loan: Loan) => {
     router.push(`/loans/${loan.id}/add-payment`);
+  };
+
+  const confirmAction = async () => {
+    if (!dialog.loan) return;
+
+    try {
+      if (dialog.type === "delete") {
+        await axiosInstance.delete(`/api/loans/${dialog.loan.id}`);
+        toast.success("Зээл амжилттай устгагдлаа");
+      } else if (dialog.type === "markPaid") {
+        await axiosInstance.patch(`/api/loans/${dialog.loan.id}/paid`);
+        toast.success("Зээл амжилттай төлөгдсөн боллоо");
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Алдаа гарлаа");
+    } finally {
+      setDialog({ ...dialog, isOpen: false });
+    }
+  };
+
+  const closeDialog = () => {
+    setDialog({ ...dialog, isOpen: false });
   };
 
   const filteredLoans = loans.filter((loan) => {
@@ -205,7 +258,8 @@ export default function DashboardPage() {
       key: "dueDate",
       label: "Төлөлт хийх огноо",
       sortable: true,
-      render: (value) => new Date(value).toLocaleDateString("mn-MN"),
+      render: (value) =>
+        value ? new Date(value).toLocaleDateString("mn-MN") : "-",
     },
   ];
 
@@ -287,53 +341,80 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <GanaaDataTable
-        data={paginatedLoans}
-        loading={loading}
-        columns={columns}
-        title="Зээлийн удирдлага"
-        subtitle="Таны авсан болон өгсөн зээлүүдийн бүртгэл"
-        headerIcon={DollarSign}
-        headerStatistics={headerStatistics}
-        primaryAction={{
-          label: "Шинэ зээл",
-          icon: PlusCircle,
-          onClick: handleCreateLoan,
-          variant: "default",
-        }}
-        actions={actions}
-        searchPlaceholder="Харилцагч, тайлбараар хайх..."
-        onSearch={setSearchValue}
-        searchValue={searchValue}
-        filters={filters}
-        onFilterChange={(key, value) => {
-          if (key === "type") setFilterType(value);
-          else if (key === "status") setFilterStatus(value);
-          setCurrentPage(1);
-        }}
-        onClearFilters={() => {
-          setFilterType("all");
-          setFilterStatus("all");
-          setSearchValue("");
-          setCurrentPage(1);
-        }}
-        currentPage={currentPage}
-        totalPages={totalPages}
-        pageSize={pageSize}
-        totalCount={filteredLoans.length}
-        onPageChange={setCurrentPage}
-        onPageSizeChange={(size) => {
-          setPageSize(size);
-          setCurrentPage(1);
-        }}
-        selectable
-        selectedRows={selectedRows}
-        onSelectionChange={setSelectedRows}
-        onRefresh={fetchData}
-        enableColumnVisibility
-        enableMobileCards
-      />
-    </div>
+    <>
+      <div className="p-4 sm:p-6 lg:p-8">
+        <GanaaDataTable
+          data={paginatedLoans}
+          loading={loading}
+          columns={columns}
+          title="Зээлийн удирдлага"
+          subtitle="Таны авсан болон өгсөн зээлүүдийн бүртгэл"
+          headerIcon={DollarSign}
+          headerStatistics={headerStatistics}
+          primaryAction={{
+            label: "Шинэ зээл",
+            icon: PlusCircle,
+            onClick: handleCreateLoan,
+            variant: "default",
+            className: "bg-blue-600 text-white hover:bg-blue-500",
+          }}
+          actions={actions}
+          searchPlaceholder="Харилцагч, тайлбараар хайх..."
+          onSearch={setSearchValue}
+          searchValue={searchValue}
+          filters={filters}
+          onFilterChange={(key, value) => {
+            if (key === "type") setFilterType(value);
+            else if (key === "status") setFilterStatus(value);
+            setCurrentPage(1);
+          }}
+          onClearFilters={() => {
+            setFilterType("all");
+            setFilterStatus("all");
+            setSearchValue("");
+            setCurrentPage(1);
+          }}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          totalCount={filteredLoans.length}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setCurrentPage(1);
+          }}
+          selectable
+          selectedRows={selectedRows}
+          onSelectionChange={setSelectedRows}
+          onRefresh={fetchData}
+          enableColumnVisibility
+          enableMobileCards
+        />
+      </div>
+
+      <AlertDialog open={dialog.isOpen} onOpenChange={closeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{dialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Цуцлах</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmAction}
+              className={
+                dialog.type === "delete"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-green-600 hover:bg-green-700"
+              }
+            >
+              {dialog.type === "delete" ? "Устгах" : "Төлсөн болгох"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

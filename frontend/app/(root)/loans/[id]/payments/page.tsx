@@ -16,6 +16,17 @@ import {
 import GanaaDataTable from "@/components/datatable/GanaaDataTable";
 import { Column, Action, HeaderStatistic } from "@/types/table.types";
 import axiosInstance from "@/lib/axios";
+import toast from "react-hot-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Payment {
   id: number;
@@ -36,6 +47,13 @@ interface Loan {
   payments: Payment[];
 }
 
+interface DialogState {
+  isOpen: boolean;
+  payment: Payment | null;
+  title: string;
+  description: string;
+}
+
 export default function PaymentHistoryPage() {
   const router = useRouter();
   const params = useParams();
@@ -43,6 +61,12 @@ export default function PaymentHistoryPage() {
   const [loan, setLoan] = useState<Loan | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialog, setDialog] = useState<DialogState>({
+    isOpen: false,
+    payment: null,
+    title: "",
+    description: "",
+  });
 
   useEffect(() => {
     fetchData();
@@ -57,26 +81,45 @@ export default function PaymentHistoryPage() {
       ]);
       setLoan(loanResponse.data);
       setPayments(paymentsResponse.data);
-    } catch (err) {
-      alert("Мэдээлэл татахад алдаа гарлаа");
+    } catch (err: any) {
+      toast.error("Мэдээлэл татахад алдаа гарлаа");
       router.back();
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeletePayment = async (payment: Payment) => {
-    if (!confirm(`${payment.amount}₮ Төлөлтийг устгах уу?`)) return;
+  const handleDeletePayment = (payment: Payment) => {
+    setDialog({
+      isOpen: true,
+      payment,
+      title: "Төлөлт устгах",
+      description: `${payment.amount.toLocaleString()}₮ төлөлтийг устгахдаа итгэлтэй байна уу? Энэ үйлдлийг буцаах боломжгүй.`,
+    });
+  };
+
+  const confirmDelete = async () => {
+    if (!dialog.payment) return;
+
     try {
-      await axiosInstance.delete(`/api/loans/${loanId}/payments/${payment.id}`);
+      await axiosInstance.delete(
+        `/api/loans/${loanId}/payments/${dialog.payment.id}`
+      );
+      toast.success("Төлөлт амжилттай устгагдлаа");
       await fetchData();
     } catch (err: any) {
-      alert(err.response?.data?.error || "Алдаа гарлаа");
+      toast.error(err.response?.data?.error || "Төлөлт устгахад алдаа гарлаа");
+    } finally {
+      closeDialog();
     }
   };
 
   const handleAddPayment = () => {
     router.push(`/loans/${loanId}/add-payment`);
+  };
+
+  const closeDialog = () => {
+    setDialog({ ...dialog, isOpen: false });
   };
 
   const totalPaid = loan ? loan.amount - loan.remainingAmount : 0;
@@ -155,78 +198,101 @@ export default function PaymentHistoryPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8">
-      <div className="mb-6">
-        <button
-          onClick={() => router.push("/dashboard")}
-          className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Буцах
-        </button>
+    <>
+      <div className="p-4 sm:p-6 lg:p-8">
+        <div className="mb-6">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Буцах
+          </button>
 
-        {loan && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                  {loan.otherParty}
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {loan.description || "Тайлбаргүй"}
-                </p>
+          {loan && (
+            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                    {loan.otherParty}
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {loan.description || "Тайлбаргүй"}
+                  </p>
+                </div>
+                <span
+                  className={`px-3 py-1 text-sm font-medium rounded-full ${
+                    loan.type === "BORROWED"
+                      ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                      : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+                  }`}
+                >
+                  {loan.type === "BORROWED" ? "Авсан" : "Өгсөн"}
+                </span>
               </div>
-              <span
-                className={`px-3 py-1 text-sm font-medium rounded-full ${
-                  loan.type === "BORROWED"
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                    : "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-                }`}
-              >
-                {loan.type === "BORROWED" ? "Авсан" : "Өгсөн"}
-              </span>
-            </div>
 
-            {/* Progress Bar */}
-            <div className="mt-4">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Төлөлтийн явц</span>
-                <span className="font-semibold">{paymentPercentage}%</span>
-              </div>
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                <div
-                  className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
-                  style={{ width: `${paymentPercentage}%` }}
-                />
+              {/* Progress Bar */}
+              <div className="mt-4">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                  <span>Төлөлтийн явц</span>
+                  <span className="font-semibold">{paymentPercentage}%</span>
+                </div>
+                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${paymentPercentage}%` }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        <GanaaDataTable
+          data={payments}
+          loading={loading}
+          columns={columns}
+          title="Төлөлтийн түүх"
+          subtitle={`Нийт ${payments.length} төлөлт бүртгэгдсэн`}
+          headerIcon={DollarSign}
+          headerStatistics={headerStatistics}
+          primaryAction={
+            loan?.status !== "PAID"
+              ? {
+                  label: "Төлөлт нэмэх",
+                  icon: Plus,
+                  onClick: handleAddPayment,
+                  variant: "outline",
+                  className: "bg-blue-600 text-white hover:bg-blue-500",
+                }
+              : undefined
+          }
+          actions={actions}
+          onRefresh={fetchData}
+          enableColumnVisibility
+          enableMobileCards
+        />
       </div>
 
-      <GanaaDataTable
-        data={payments}
-        loading={loading}
-        columns={columns}
-        title="Төлөлтийн түүх"
-        subtitle={`Нийт ${payments.length} Төлөлт бүртгэгдсэн`}
-        headerIcon={DollarSign}
-        headerStatistics={headerStatistics}
-        primaryAction={
-          loan?.status !== "PAID"
-            ? {
-                label: "Төлөлт нэмэх",
-                icon: Plus,
-                onClick: handleAddPayment,
-                variant: "default",
-              }
-            : undefined
-        }
-        actions={actions}
-        onRefresh={fetchData}
-        enableColumnVisibility
-        enableMobileCards
-      />
-    </div>
+      <AlertDialog open={dialog.isOpen} onOpenChange={closeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{dialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dialog.description}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Цуцлах</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Устгах
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

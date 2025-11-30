@@ -223,7 +223,7 @@ export const addPayment = async (req: Request, res: Response) => {
 
     if (paymentAmount > loan.remainingAmount) {
       return res.status(400).json({
-        error: `Зээлийн үлдэгдэл: ${loan.remainingAmount}`,
+        error: `Зээлийн үлдэгдэл: ${loan.remainingAmount} байгаа тул тохируулан төлнө үү`,
       });
     }
 

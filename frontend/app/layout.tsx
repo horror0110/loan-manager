@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import "./globals.css";
 import { GlobalProvider } from "@/context/GlobalContext";
+import { Toaster } from "react-hot-toast";
 
 const roboto = Roboto({
   variable: "--font-roboto",
@@ -22,7 +23,10 @@ export default function RootLayout({
   return (
     <html lang="mn">
       <body className={`${roboto.variable} antialiased font-sans`}>
-        <GlobalProvider>{children}</GlobalProvider>
+        <GlobalProvider>
+          {children}
+          <Toaster position="top-center" />
+        </GlobalProvider>
       </body>
     </html>
   );
