@@ -1,4 +1,4 @@
-// backend/controllers/authController.ts
+// backend/src/controllers/authController.ts
 import { Request, Response } from "express";
 import { signToken } from "../lib/jwt";
 
@@ -12,15 +12,17 @@ export const googleCallback = async (req: Request, res: Response) => {
     name: user.name,
   });
 
+  // Frontend URL-ийг environment variable-с авах
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3001";
+
   // Token-ийг query parameter-ээр дамжуулах
-  res.redirect(`http://localhost:3001/auth/callback?token=${token}`);
+  res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
 };
 
 // Logout endpoint
 export const logout = async (req: Request, res: Response) => {
   try {
     console.log("✅ User logged out");
-
     res.status(200).json({
       success: true,
       message: "Амжилттай гарлаа",
