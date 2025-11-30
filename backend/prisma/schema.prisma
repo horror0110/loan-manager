@@ -1,7 +1,7 @@
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  // output мөрийг УСТГАСАН
 }
 
 datasource db {
@@ -18,21 +18,21 @@ model User {
 }
 
 model Loan {
-  id              Int             @id @default(autoincrement())
+  id              Int        @id @default(autoincrement())
   amount          Float
-  remainingAmount Float           @default(0)  // default нэмсэн
+  remainingAmount Float      @default(0)
   description     String?
-  loanDate        DateTime        @default(now())
+  loanDate        DateTime   @default(now())
   dueDate         DateTime?
-  status          LoanStatus      @default(ACTIVE)
+  status          LoanStatus @default(ACTIVE)
   type            LoanType
   otherParty      String
   userId          Int
-  user            User            @relation(fields: [userId], references: [id])
+  user            User       @relation(fields: [userId], references: [id])
   payments        Payment[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  
   @@index([userId])
 }
 
@@ -44,7 +44,7 @@ model Payment {
   loanId      Int
   loan        Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
-
+  
   @@index([loanId])
 }
 
