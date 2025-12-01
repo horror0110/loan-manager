@@ -11,6 +11,7 @@ export const getLoans = async (req: Request, res: Response) => {
     const loans = await prisma.loan.findMany({
       where: { userId: user.id },
       include: {
+        customer: true, // Харилцагчийн мэдээлэл нэмэх
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -42,6 +43,7 @@ export const getLoanById = async (req: Request, res: Response) => {
         userId: user.id,
       },
       include: {
+        customer: true,
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -65,12 +67,19 @@ export const getLoanById = async (req: Request, res: Response) => {
 export const createLoan = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    const { amount, description, otherParty, loanDate, dueDate, type } =
-      req.body;
+    const {
+      amount,
+      description,
+      otherParty,
+      customerId,
+      loanDate,
+      dueDate,
+      type,
+    } = req.body;
 
-    if (!amount || !otherParty || !type) {
+    if (!amount || !type) {
       return res.status(400).json({
-        error: "Amount, otherParty, and type are required",
+        error: "Amount and type are required",
       });
     }
 
@@ -80,12 +89,34 @@ export const createLoan = async (req: Request, res: Response) => {
       });
     }
 
+    // customerId эсвэл otherParty заавал байх ёстой
+    if (!customerId && !otherParty) {
+      return res.status(400).json({
+        error: "Either customerId or otherParty is required",
+      });
+    }
+
+    // Харилцагч сонгосон бол шалгах
+    if (customerId) {
+      const customer = await prisma.customer.findFirst({
+        where: {
+          id: Number(customerId),
+          userId: user.id,
+        },
+      });
+
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+    }
+
     const loan = await prisma.loan.create({
       data: {
         amount: Number(amount),
-        remainingAmount: Number(amount), // Эхлээд үлдэгдэл = нийт дүн
+        remainingAmount: Number(amount),
         description,
-        otherParty,
+        otherParty: otherParty || "",
+        customerId: customerId ? Number(customerId) : null,
         loanDate: loanDate ? new Date(loanDate) : new Date(),
         dueDate: dueDate ? new Date(dueDate) : null,
         type,
@@ -93,6 +124,7 @@ export const createLoan = async (req: Request, res: Response) => {
         userId: user.id,
       },
       include: {
+        customer: true,
         payments: true,
       },
     });
@@ -112,8 +144,15 @@ export const updateLoan = async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const { id } = req.params;
-    const { amount, description, otherParty, loanDate, dueDate, status } =
-      req.body;
+    const {
+      amount,
+      description,
+      otherParty,
+      customerId,
+      loanDate,
+      dueDate,
+      status,
+    } = req.body;
 
     const existingLoan = await prisma.loan.findFirst({
       where: {
@@ -129,6 +168,20 @@ export const updateLoan = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Loan not found" });
     }
 
+    // Харилцагч өөрчлөх бол шалгах
+    if (customerId !== undefined && customerId !== null) {
+      const customer = await prisma.customer.findFirst({
+        where: {
+          id: Number(customerId),
+          userId: user.id,
+        },
+      });
+
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+    }
+
     const updateData: any = {};
     if (amount !== undefined) {
       const newAmount = Number(amount);
@@ -138,6 +191,8 @@ export const updateLoan = async (req: Request, res: Response) => {
     }
     if (description !== undefined) updateData.description = description;
     if (otherParty !== undefined) updateData.otherParty = otherParty;
+    if (customerId !== undefined)
+      updateData.customerId = customerId ? Number(customerId) : null;
     if (loanDate) updateData.loanDate = new Date(loanDate);
     if (dueDate) updateData.dueDate = new Date(dueDate);
     if (status && ["ACTIVE", "PAID", "OVERDUE"].includes(status)) {
@@ -148,6 +203,7 @@ export const updateLoan = async (req: Request, res: Response) => {
       where: { id: Number(id) },
       data: updateData,
       include: {
+        customer: true,
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -227,7 +283,6 @@ export const addPayment = async (req: Request, res: Response) => {
       });
     }
 
-    // Төлөлт нэмэх
     const payment = await prisma.payment.create({
       data: {
         amount: paymentAmount,
@@ -237,7 +292,6 @@ export const addPayment = async (req: Request, res: Response) => {
       },
     });
 
-    // Үлдэгдэл шинэчлэх
     const newRemainingAmount = loan.remainingAmount - paymentAmount;
     const newStatus = newRemainingAmount === 0 ? "PAID" : loan.status;
 
@@ -248,6 +302,7 @@ export const addPayment = async (req: Request, res: Response) => {
         status: newStatus,
       },
       include: {
+        customer: true,
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -323,19 +378,18 @@ export const deletePayment = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Payment not found" });
     }
 
-    // Төлөлт устгах
     await prisma.payment.delete({
       where: { id: Number(paymentId) },
     });
 
-    // Үлдэгдэл буцааж нэмэх
     const updatedLoan = await prisma.loan.update({
       where: { id: Number(id) },
       data: {
         remainingAmount: loan.remainingAmount + payment.amount,
-        status: "ACTIVE", // Төлөлт устгасан тул буцааж идэвхтэй болгох
+        status: "ACTIVE",
       },
       include: {
+        customer: true,
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -369,7 +423,6 @@ export const markLoanAsPaid = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Loan not found" });
     }
 
-    // Үлдэгдэл байвал Төлөлт үүсгэх
     if (loan.remainingAmount > 0) {
       await prisma.payment.create({
         data: {
@@ -387,6 +440,7 @@ export const markLoanAsPaid = async (req: Request, res: Response) => {
         status: "PAID",
       },
       include: {
+        customer: true,
         payments: {
           orderBy: { paymentDate: "desc" },
         },
@@ -425,7 +479,7 @@ export const getLoanStats = async (req: Request, res: Response) => {
     });
 
     const totalBorrowed = borrowedLoans.reduce(
-      (sum, loan) => sum + loan.remainingAmount, // Үлдэгдэл дүн ашиглах
+      (sum, loan) => sum + loan.remainingAmount,
       0
     );
     const totalLent = lentLoans.reduce(

@@ -63,6 +63,7 @@ const Navbar = () => {
   const navLinks = [
     { href: "/dashboard", label: "Нүүр" },
     { href: "/loans/history", label: "Зээлийн түүх" },
+    { href: "/customers", label: "Харилцагчид" },
   ];
 
   const isActive = (path: string) => pathname === path;

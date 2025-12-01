@@ -38,6 +38,16 @@ interface Payment {
   createdAt: string;
 }
 
+interface Customer {
+  id: number;
+  name: string;
+  register: string;
+  phone: string;
+  userId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Loan {
   id: number;
   amount: number;
@@ -48,6 +58,8 @@ interface Loan {
   status: "ACTIVE" | "PAID" | "OVERDUE";
   type: "BORROWED" | "LENT";
   otherParty: string;
+  customerId?: number | null;
+  customer?: Customer | null;
   payments: Payment[];
   _count?: {
     payments: number;
@@ -126,26 +138,24 @@ export default function DashboardPage() {
     router.push(`/loans/${loan.id}/payments`);
 
   const handleDeleteLoan = (loan: Loan) => {
+    const partyName = loan.customer?.name || loan.otherParty;
     setDialog({
       isOpen: true,
       type: "delete",
       loan,
       title: "Зээл устгах",
-      description: `"${
-        loan.otherParty
-      }" - ${loan.amount.toLocaleString()}₮ зээлийг устгахдаа итгэлтэй байна уу? Энэ үйлдлийг буцаах боломжгүй.`,
+      description: `"${partyName}" - ${loan.amount.toLocaleString()}₮ зээлийг устгахдаа итгэлтэй байна уу? Энэ үйлдлийг буцаах боломжгүй.`,
     });
   };
 
   const handleMarkAsPaid = (loan: Loan) => {
+    const partyName = loan.customer?.name || loan.otherParty;
     setDialog({
       isOpen: true,
       type: "markPaid",
       loan,
       title: "Зээл төлөгдсөн болгох",
-      description: `"${
-        loan.otherParty
-      }" - ${loan.remainingAmount.toLocaleString()}₮ үлдэгдлийг бүтэн төлөгдсөн болгох уу?`,
+      description: `"${partyName}" - ${loan.remainingAmount.toLocaleString()}₮ үлдэгдлийг бүтэн төлөгдсөн болгох уу?`,
     });
   };
 
@@ -178,9 +188,17 @@ export default function DashboardPage() {
   };
 
   const filteredLoans = loans.filter((loan) => {
+    const customerName = loan.customer?.name || "";
+    const customerRegister = loan.customer?.register || "";
+    const customerPhone = loan.customer?.phone || "";
+
     const matchesSearch =
       loan.otherParty.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerName.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerRegister.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerPhone.toLowerCase().includes(searchValue.toLowerCase()) ||
       loan.description?.toLowerCase().includes(searchValue.toLowerCase());
+
     const matchesType = filterType === "all" || loan.type === filterType;
     const matchesStatus =
       filterStatus === "all" || loan.status === filterStatus;
@@ -210,6 +228,19 @@ export default function DashboardPage() {
       key: "otherParty",
       label: "Харилцагч",
       sortable: true,
+      render: (value, item) => (
+        <div className="flex flex-col">
+          <span className="font-medium">
+            {item.customer?.name || value || "-"}
+          </span>
+          {item.customer && (
+            <div className="flex flex-col text-xs text-gray-500 mt-1">
+              <span>РД: {item.customer.register}</span>
+              <span>Утас: {item.customer.phone}</span>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       key: "amount",
@@ -359,7 +390,7 @@ export default function DashboardPage() {
             className: "bg-blue-600 text-white hover:bg-blue-500",
           }}
           actions={actions}
-          searchPlaceholder="Харилцагч, тайлбараар хайх..."
+          searchPlaceholder="Харилцагч, регистр, утас, тайлбараар хайх..."
           onSearch={setSearchValue}
           searchValue={searchValue}
           filters={filters}

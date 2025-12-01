@@ -6,6 +6,7 @@ import passport from "passport";
 import "./auth";
 import authRoutes from "./routes/authRoutes";
 import loanRoutes from "./routes/loanRoutes";
+import customerRoutes from "./routes/customerRoutes";
 
 dotenv.config();
 
@@ -38,6 +39,7 @@ app.use(passport.session());
 
 app.use("/auth", authRoutes);
 app.use("/api/loans", loanRoutes);
+app.use("/api/customers", customerRoutes);
 
 app.get("/", (req, res) => {
   res.send("Hello from Loan Manager Backend!");

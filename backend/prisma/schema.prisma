@@ -1,7 +1,6 @@
 // prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
-  // output мөрийг УСТГАСАН
 }
 
 datasource db {
@@ -10,11 +9,27 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
+  id        Int        @id @default(autoincrement())
+  email     String     @unique
   name      String?
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
   loans     Loan[]
+  customers Customer[]
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  register  String?  // Регистрийн дугаар
+  phone     String?
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  loans     Loan[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([userId])
+  @@unique([userId, register]) // Нэг хэрэглэгч дээр давхцах регистр байхгүй
 }
 
 model Loan {
@@ -26,7 +41,9 @@ model Loan {
   dueDate         DateTime?
   status          LoanStatus @default(ACTIVE)
   type            LoanType
-  otherParty      String
+  otherParty      String     // Харилцагчийн нэр (fallback)
+  customerId      Int?       // Харилцагчтай холбох
+  customer        Customer?  @relation(fields: [customerId], references: [id])
   userId          Int
   user            User       @relation(fields: [userId], references: [id])
   payments        Payment[]
@@ -34,6 +51,7 @@ model Loan {
   updatedAt       DateTime   @updatedAt
   
   @@index([userId])
+  @@index([customerId])
 }
 
 model Payment {

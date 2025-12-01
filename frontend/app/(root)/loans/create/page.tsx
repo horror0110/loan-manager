@@ -1,7 +1,7 @@
-// app/dashboard/loans/create/page.tsx
+// app/(root)/loans/create/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -10,38 +10,90 @@ import {
   User,
   Calendar,
   FileText,
+  Search,
 } from "lucide-react";
 import axiosInstance from "@/lib/axios";
+import toast from "react-hot-toast";
+
+interface Customer {
+  id: number;
+  name: string;
+  register?: string;
+  phone?: string;
+}
 
 export default function CreateLoanPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loadingCustomers, setLoadingCustomers] = useState(true);
+  const [useCustomer, setUseCustomer] = useState(true);
   const [formData, setFormData] = useState({
     type: "BORROWED",
     amount: "",
+    customerId: "",
     otherParty: "",
     description: "",
     loanDate: new Date().toISOString().split("T")[0],
     dueDate: "",
   });
 
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      setLoadingCustomers(true);
+      const response = await axiosInstance.get("/api/customers");
+      setCustomers(response.data);
+    } catch (err: any) {
+      toast.error("Харилцагч татахад алдаа гарлаа");
+    } finally {
+      setLoadingCustomers(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.amount || !formData.otherParty || !formData.type) {
-      alert("Дүн, харилцагч, төрөл заавал бөглөнө үү!");
+    if (!formData.amount || !formData.type) {
+      toast.error("Дүн, төрөл заавал бөглөнө үү!");
+      return;
+    }
+
+    if (useCustomer && !formData.customerId) {
+      toast.error("Харилцагч сонгоно уу!");
+      return;
+    }
+
+    if (!useCustomer && !formData.otherParty) {
+      toast.error("Харилцагчийн нэр оруулна уу!");
       return;
     }
 
     try {
       setLoading(true);
-      await axiosInstance.post("/api/loans", {
-        ...formData,
+      const payload: any = {
+        type: formData.type,
         amount: parseFloat(formData.amount),
-      });
+        description: formData.description,
+        loanDate: formData.loanDate,
+        dueDate: formData.dueDate || null,
+      };
+
+      if (useCustomer) {
+        payload.customerId = parseInt(formData.customerId);
+        // Backend дээр customerId байвал otherParty автоматаар тохируулна
+      } else {
+        payload.otherParty = formData.otherParty;
+      }
+
+      await axiosInstance.post("/api/loans", payload);
+      toast.success("Зээл амжилттай үүсгэлээ");
       router.push("/dashboard");
     } catch (err: any) {
-      alert(err.response?.data?.error || "Зээл үүсгэхэд алдаа гарлаа");
+      toast.error(err.response?.data?.error || "Зээл үүсгэхэд алдаа гарлаа");
     } finally {
       setLoading(false);
     }
@@ -57,6 +109,10 @@ export default function CreateLoanPage() {
       [e.target.name]: e.target.value,
     });
   };
+
+  const selectedCustomer = customers.find(
+    (c) => c.id === parseInt(formData.customerId)
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -156,28 +212,124 @@ export default function CreateLoanPage() {
               />
             </div>
 
-            {/* Other Party */}
-            <div>
-              <label
-                htmlFor="otherParty"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-              >
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Харилцагч <span className="text-red-500">*</span>
-                </div>
-              </label>
+            {/* Customer Selection Toggle */}
+            <div className="flex items-center gap-3 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
               <input
-                type="text"
-                id="otherParty"
-                name="otherParty"
-                value={formData.otherParty}
-                onChange={handleChange}
-                required
-                placeholder="Хэнээс авсан эсвэл хэнд өгсөн"
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                type="checkbox"
+                id="useCustomer"
+                checked={useCustomer}
+                onChange={(e) => {
+                  setUseCustomer(e.target.checked);
+                  if (e.target.checked) {
+                    setFormData({ ...formData, otherParty: "" });
+                  } else {
+                    setFormData({ ...formData, customerId: "" });
+                  }
+                }}
+                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
               />
+              <label
+                htmlFor="useCustomer"
+                className="text-sm text-gray-700 dark:text-gray-300"
+              >
+                Бүртгэлтэй харилцагчаас сонгох
+              </label>
             </div>
+
+            {/* Customer Selection or Manual Input */}
+            {useCustomer ? (
+              <div>
+                <label
+                  htmlFor="customerId"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Харилцагч сонгох <span className="text-red-500">*</span>
+                  </div>
+                </label>
+                {loadingCustomers ? (
+                  <div className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                    Уншиж байна...
+                  </div>
+                ) : customers.length === 0 ? (
+                  <div className="space-y-2">
+                    <div className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                      Харилцагч байхгүй байна
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => router.push("/customers/create")}
+                      className="text-sm text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                    >
+                      Шинэ харилцагч үүсгэх →
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      id="customerId"
+                      name="customerId"
+                      value={formData.customerId}
+                      onChange={handleChange}
+                      required={useCustomer}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      <option value="">-- Харилцагч сонгох --</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name}
+                          {customer.register && ` (${customer.register})`}
+                          {customer.phone && ` - ${customer.phone}`}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedCustomer && (
+                      <div className="mt-2 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {selectedCustomer.name}
+                          </span>
+                        </div>
+                        {selectedCustomer.register && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-6">
+                            Регистр: {selectedCustomer.register}
+                          </p>
+                        )}
+                        {selectedCustomer.phone && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 ml-6">
+                            Утас: {selectedCustomer.phone}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="otherParty"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4" />
+                    Харилцагч <span className="text-red-500">*</span>
+                  </div>
+                </label>
+                <input
+                  type="text"
+                  id="otherParty"
+                  name="otherParty"
+                  value={formData.otherParty}
+                  onChange={handleChange}
+                  required={!useCustomer}
+                  placeholder="Хэнээс авсан эсвэл хэнд өгсөн"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                />
+              </div>
+            )}
 
             {/* Loan Date */}
             <div>
