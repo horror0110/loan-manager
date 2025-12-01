@@ -362,7 +362,7 @@ export default function CustomerStatsPage() {
                 </div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Буцаасан
+                    Төлсөн
                   </span>
                   <span className="font-medium text-green-600 dark:text-green-400">
                     {formatMoney(lentPaid)}
