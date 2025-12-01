@@ -30,6 +30,16 @@ interface Payment {
   loanId: number;
 }
 
+interface Customer {
+  id: number;
+  name: string;
+  register: string;
+  phone: string;
+  userId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Loan {
   id: number;
   amount: number;
@@ -39,6 +49,8 @@ interface Loan {
   type: "BORROWED" | "LENT";
   status: string;
   loanDate: string;
+  customerId?: number | null;
+  customer?: Customer | null;
   payments: Payment[];
 }
 
@@ -48,6 +60,7 @@ interface HistoryItem {
   type: "loan" | "payment";
   transactionType: "BORROWED" | "LENT";
   otherParty: string;
+  customer?: Customer | null;
   amount: number;
   description?: string;
   loanId: number;
@@ -92,6 +105,7 @@ export default function LoanHistoryPage() {
           type: "loan",
           transactionType: loan.type,
           otherParty: loan.otherParty,
+          customer: loan.customer,
           amount: loan.amount,
           description: loan.description,
           loanId: loan.id,
@@ -107,6 +121,7 @@ export default function LoanHistoryPage() {
             type: "payment",
             transactionType: loan.type,
             otherParty: loan.otherParty,
+            customer: loan.customer,
             amount: payment.amount,
             description: payment.description,
             loanId: loan.id,
@@ -127,9 +142,17 @@ export default function LoanHistoryPage() {
   };
 
   const filteredItems = historyItems.filter((item) => {
+    const customerName = item.customer?.name || "";
+    const customerRegister = item.customer?.register || "";
+    const customerPhone = item.customer?.phone || "";
+
     const matchesSearch =
       item.otherParty.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerName.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerRegister.toLowerCase().includes(searchValue.toLowerCase()) ||
+      customerPhone.toLowerCase().includes(searchValue.toLowerCase()) ||
       item.description?.toLowerCase().includes(searchValue.toLowerCase());
+
     const matchesType = filterType === "all" || item.type === filterType;
     const matchesTransaction =
       filterTransaction === "all" || item.transactionType === filterTransaction;
@@ -198,6 +221,19 @@ export default function LoanHistoryPage() {
       key: "otherParty",
       label: "Харилцагч",
       sortable: true,
+      render: (value, item) => (
+        <div className="flex flex-col">
+          <span className="font-medium">
+            {item.customer?.name || value || "-"}
+          </span>
+          {item.customer && (
+            <div className="flex flex-col text-xs text-gray-500 mt-1">
+              <span>РД: {item.customer.register}</span>
+              <span>Утас: {item.customer.phone}</span>
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       key: "amount",
@@ -323,7 +359,7 @@ export default function LoanHistoryPage() {
         subtitle="Таны бүх зээл болон Төлөлтийн дэлгэрэнгүй түүх"
         headerIcon={History}
         headerStatistics={headerStatistics}
-        searchPlaceholder="Харилцагч, тайлбараар хайх..."
+        searchPlaceholder="Харилцагч, регистр, утас, тайлбараар хайх..."
         onSearch={setSearchValue}
         searchValue={searchValue}
         filters={filters}
