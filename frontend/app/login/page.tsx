@@ -6,7 +6,7 @@ import { LogIn } from "lucide-react";
 
 const LoginPage = () => {
   const handleGoogleLogin = () => {
-    window.location.href = `${process.env.FRONTEND_URL}/auth/google/`;
+    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/google`;
   };
   [];
   return (
