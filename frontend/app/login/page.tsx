@@ -6,8 +6,7 @@ import { LogIn } from "lucide-react";
 
 const LoginPage = () => {
   const handleGoogleLogin = () => {
-    window.location.href =
-      "https://loan-manager-zoec.onrender.com/auth/google/";
+    window.location.href = `${process.env.FRONTEND_URL}/auth/google/`;
   };
   [];
   return (
